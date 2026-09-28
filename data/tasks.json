@@ -1,0 +1,52 @@
+[
+  {
+    "id": "TSK-1001",
+    "title": "Prepare Java Concurrency Slides",
+    "description": "Create lecture slides explaining race conditions, synchronization, and ScheduledExecutorService.",
+    "priority": "HIGH",
+    "status": "IN_PROGRESS",
+    "createdDateTime": "2026-09-20T10:30:00",
+    "deadline": "2026-09-29",
+    "completed": false
+  },
+  {
+    "id": "TSK-1002",
+    "title": "Review Operating Systems Chapter 4",
+    "description": "Read sections on process scheduling, context switching, and POSIX threads.",
+    "priority": "MEDIUM",
+    "status": "PENDING",
+    "createdDateTime": "2026-09-22T14:15:00",
+    "deadline": "2026-10-05",
+    "completed": false
+  },
+  {
+    "id": "TSK-1003",
+    "title": "Submit Database Lab Assignment",
+    "description": "Design normalized schema (3NF) and write SQL queries for library management.",
+    "priority": "HIGH",
+    "status": "COMPLETED",
+    "createdDateTime": "2026-09-15T09:00:00",
+    "deadline": "2026-09-24",
+    "completed": true
+  },
+  {
+    "id": "TSK-1004",
+    "title": "Fix Memory Leak in C Daemon",
+    "description": "Use Valgrind to trace unclosed file descriptors and dangling pointers in socket listener.",
+    "priority": "LOW",
+    "status": "PENDING",
+    "createdDateTime": "2026-09-10T11:00:00",
+    "deadline": "2026-09-25",
+    "completed": false
+  },
+  {
+    "id": "TSK-1005",
+    "title": "Set Up Git Branch Protection",
+    "description": "Configure branch rules on main branch to require pull request reviews and CI checks.",
+    "priority": "MEDIUM",
+    "status": "COMPLETED",
+    "createdDateTime": "2026-09-18T16:45:00",
+    "deadline": "2026-09-21",
+    "completed": true
+  }
+]

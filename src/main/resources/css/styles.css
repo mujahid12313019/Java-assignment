@@ -1,0 +1,291 @@
+/* ==========================================================================
+   Multithreaded Task Management System - Desktop Theme
+   Clean, Modern, Accessible JavaFX Stylesheet
+   ========================================================================== */
+
+/* Root / Theme Variables */
+.root {
+    -fx-font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", sans-serif;
+    -fx-font-size: 13px;
+    -fx-background-color: #f4f6f9;
+    -fx-text-fill: #2c3e50;
+}
+
+/* Header Banner */
+.app-header {
+    -fx-background-color: linear-gradient(to right, #1e3c72, #2a5298);
+    -fx-padding: 16px 24px;
+    -fx-alignment: center-left;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.15), 8, 0, 0, 3);
+}
+
+.app-title {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ffffff;
+}
+
+.app-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #d0e1fd;
+}
+
+/* Navigation Tabs */
+.tab-pane .tab-header-area {
+    -fx-background-color: #ffffff;
+    -fx-padding: 6px 16px 0 16px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.tab-pane .tab {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6px 6px 0 0;
+    -fx-padding: 8px 18px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #64748b;
+    -fx-cursor: hand;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: #f4f6f9;
+    -fx-border-color: #2a5298;
+    -fx-border-width: 0 0 3px 0;
+    -fx-text-fill: #1e3c72;
+}
+
+.tab-pane .tab:hover {
+    -fx-background-color: #f1f5f9;
+}
+
+/* General View Container */
+.view-container {
+    -fx-padding: 20px;
+    -fx-spacing: 16px;
+}
+
+/* Card Container */
+.card {
+    -fx-background-color: #ffffff;
+    -fx-background-radius: 8px;
+    -fx-border-radius: 8px;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1px;
+    -fx-padding: 18px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.04), 6, 0, 0, 2);
+}
+
+.card-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #1e293b;
+}
+
+.card-value {
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2a5298;
+}
+
+.card-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #64748b;
+}
+
+/* KPI / Metric Specific Colors */
+.metric-card-total .card-value { -fx-text-fill: #3b82f6; }
+.metric-card-pending .card-value { -fx-text-fill: #f59e0b; }
+.metric-card-inprogress .card-value { -fx-text-fill: #0ea5e9; }
+.metric-card-completed .card-value { -fx-text-fill: #10b981; }
+.metric-card-overdue .card-value { -fx-text-fill: #ef4444; }
+
+/* Buttons */
+.button {
+    -fx-background-color: #2563eb;
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: 600;
+    -fx-background-radius: 6px;
+    -fx-padding: 8px 16px;
+    -fx-cursor: hand;
+}
+
+.button:hover {
+    -fx-background-color: #1d4ed8;
+}
+
+.button:pressed {
+    -fx-background-color: #1e40af;
+}
+
+.btn-secondary {
+    -fx-background-color: #e2e8f0;
+    -fx-text-fill: #334155;
+}
+
+.btn-secondary:hover {
+    -fx-background-color: #cbd5e1;
+}
+
+.btn-success {
+    -fx-background-color: #10b981;
+    -fx-text-fill: #ffffff;
+}
+
+.btn-success:hover {
+    -fx-background-color: #059669;
+}
+
+.btn-danger {
+    -fx-background-color: #ef4444;
+    -fx-text-fill: #ffffff;
+}
+
+.btn-danger:hover {
+    -fx-background-color: #dc2626;
+}
+
+/* Search and Filter Bar */
+.filter-bar {
+    -fx-spacing: 12px;
+    -fx-alignment: center-left;
+    -fx-padding: 6px 0;
+}
+
+.text-field, .combo-box, .date-picker {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #cbd5e1;
+    -fx-border-radius: 5px;
+    -fx-background-radius: 5px;
+    -fx-padding: 6px 10px;
+}
+
+.text-field:focused, .combo-box:focused, .date-picker:focused {
+    -fx-border-color: #3b82f6;
+    -fx-effect: dropshadow(three-pass-box, rgba(59, 130, 246, 0.25), 4, 0, 0, 0);
+}
+
+/* Modern TableView */
+.table-view {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #e2e8f0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0, 0, 0, 0.04), 4, 0, 0, 1);
+}
+
+.table-view .column-header-background {
+    -fx-background-color: #f8fafc;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 0 0 1px 0;
+}
+
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-font-weight: bold;
+    -fx-text-fill: #475569;
+    -fx-padding: 10px 8px;
+}
+
+.table-row-cell {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #f1f5f9;
+    -fx-border-width: 0 0 1px 0;
+    -fx-padding: 4px 0;
+}
+
+.table-row-cell:odd {
+    -fx-background-color: #fafbfc;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #eff6ff;
+    -fx-text-fill: #1e3a8a;
+}
+
+.table-row-cell:hover {
+    -fx-background-color: #f1f5f9;
+}
+
+/* Status and Priority Badges */
+.badge {
+    -fx-background-radius: 12px;
+    -fx-padding: 4px 10px;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-alignment: center;
+}
+
+.badge-low {
+    -fx-background-color: #ecfdf5;
+    -fx-text-fill: #047857;
+}
+
+.badge-medium {
+    -fx-background-color: #fffbeb;
+    -fx-text-fill: #b45309;
+}
+
+.badge-high {
+    -fx-background-color: #fef2f2;
+    -fx-text-fill: #b91c1c;
+}
+
+.badge-pending {
+    -fx-background-color: #f3f4f6;
+    -fx-text-fill: #4b5563;
+}
+
+.badge-inprogress {
+    -fx-background-color: #eff6ff;
+    -fx-text-fill: #1d4ed8;
+}
+
+.badge-completed {
+    -fx-background-color: #ecfdf5;
+    -fx-text-fill: #047857;
+}
+
+.badge-overdue {
+    -fx-background-color: #fef2f2;
+    -fx-text-fill: #dc2626;
+    -fx-border-color: #fca5a5;
+    -fx-border-radius: 12px;
+}
+
+/* Bottom Status / Footer Bar */
+.status-bar {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #e2e8f0;
+    -fx-border-width: 1px 0 0 0;
+    -fx-padding: 6px 16px;
+    -fx-spacing: 12px;
+    -fx-alignment: center-left;
+}
+
+.status-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #64748b;
+}
+
+/* Progress Bars */
+.progress-bar {
+    -fx-pref-height: 12px;
+}
+
+.progress-bar .track {
+    -fx-background-color: #e2e8f0;
+    -fx-background-radius: 6px;
+}
+
+.progress-bar .bar {
+    -fx-background-color: #3b82f6;
+    -fx-background-radius: 6px;
+}
+
+.progress-bar-completed .bar {
+    -fx-background-color: #10b981;
+}
+
+.progress-bar-pending .bar {
+    -fx-background-color: #f59e0b;
+}
