@@ -1,301 +1,479 @@
-# Multithreaded Desktop Task Management System Using JavaFX
+# Multithreaded Desktop Task Management System — JavaFX
 
-An enterprise-grade, concurrent desktop application engineered for task management, demonstrating core concepts of Java Object-Oriented Programming, JavaFX graphical user interfaces, multithreading, thread-safe concurrency, native vs. bytecode compilation pipelines, and Git version control.
+**University Assignment — Advanced Object-Oriented Programming (Java)**
 
----
-
-## Table of Contents
-1. [Description](#description)
-2. [Features](#features)
-3. [Technologies Used](#technologies)
-4. [Project Architecture](#project-architecture)
-5. [Java Compilation vs. C Compilation](#java-compilation-vs-c-compilation)
-6. [JVM vs. JRE vs. JDK](#jvm-vs-jre-vs-jdk)
-7. [Multithreading and Concurrency](#multithreading-and-concurrency)
-8. [JavaFX GUI Architecture](#javafx-gui-architecture)
-9. [Git and Version Control Workflow](#git-and-version-control)
-10. [How to Build and Run](#how-to-run)
-11. [Screenshots](#screenshots)
-12. [Testing Suite](#testing-suite)
-13. [Learning Outcomes](#learning-outcomes)
-14. [Viva Examination Guide](#viva-examination-guide)
+A production-quality JavaFX desktop application demonstrating multithreading, SQLite database integration, full CRUD operations, HTTP networking, and JSON parsing.
 
 ---
 
-## Description
+## Quick Start
 
-The **Multithreaded Desktop Task Management System** is a standalone desktop application built in Java 17 and JavaFX. It allows individuals and teams to track project deliverables, assign priorities, manage lifecycle states, search and filter through tasks, monitor upcoming deadlines, and inspect real-time productivity statistics.
+```powershell
+# Run the application
+.\run.ps1
 
-Unlike rudimentary single-threaded demo apps, this system incorporates realistic background worker threads (using `ScheduledExecutorService` and `ExecutorService`) that run parallel to the JavaFX Application Thread. It addresses and resolves classic concurrency dilemmas such as race conditions, thread starvation, and `ConcurrentModificationException` using atomic references, deep copying, and `ReentrantReadWriteLock`.
+# Build only
+.\build.ps1
 
----
-
-## Features
-
-### Core Task Management (CRUD)
-- **Add Tasks**: Form modal with title validation, detailed description, priority selector, initial status, and calendar deadline.
-- **Edit Tasks**: Instant modification of task properties with validation.
-- **Delete Tasks**: Safe removal with user confirmation dialogs.
-- **Mark Completed**: One-click completion status toggling.
-- **Dynamic Search**: Instant full-text search across Title, Description, and ID.
-- **Multi-Factor Filtering**: Combine status filters (Pending, In Progress, Completed) and priority filters (Low, Medium, High).
-- **Sorting**: Native column sorting across IDs, Deadlines, Priorities, and Dates.
-
-### Advanced Multithreading Capabilities
-- **Background Auto-Save**: Automatically serializes in-memory task data to disk every 30 seconds without causing GUI stutter.
-- **Deadline Monitoring**: Daemon thread scans deadlines every 10 seconds, alerting users of overdue deliverables.
-- **Asynchronous Statistics Worker**: Aggregates metrics and distributions in a worker pool without freezing animations.
-- **Live In-App Concurrency Experiment**: Side-by-side execution demonstrating unsynchronized race conditions vs. `ReentrantReadWriteLock` safety.
-
----
-
-## Technologies
-
-- **Language**: Java 17 LTS
-- **GUI Framework**: JavaFX 17 (`openjfx`)
-- **Build System**: Apache Maven 3.9+
-- **Persistence**: File-based JSON via Jackson Databind 2.16 + JavaTime Module
-- **Testing**: JUnit 5 (Jupiter 5.10.2)
-- **Version Control**: Git / GitHub
-
----
-
-## Project Architecture
-
-The application adopts a clean, layered architectural pattern:
-
+# Run tests
+.\test.ps1
 ```
-d:/project/
-├── pom.xml                                 # Maven project object model
-├── .gitignore                              # Git exclusion rules
-├── README.md                               # Project documentation
-├── build.bat                               # Windows one-click build script
-├── run.bat                                 # Windows one-click launcher
-├── test.bat                                # Windows one-click test runner
-├── data/
-│   └── tasks.json                          # JSON persistence store
-├── docs/
-│   ├── assignment-report.md                # 18-section academic project report
-│   └── compilation/
-│       ├── hello.c                         # C native compilation sample
-│       ├── Hello.java                      # Java bytecode compilation sample
-│       └── compilation.md                  # Comprehensive compilation breakdown
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/taskmanager/
-│   │   │       ├── Main.java               # Standard non-modular launcher
-│   │   │       ├── MainApp.java            # JavaFX Application lifecycle manager
-│   │   │       ├── model/
-│   │   │       │   ├── Task.java           # Domain entity with defensive copying
-│   │   │       │   ├── TaskPriority.java   # Priority enum (LOW, MEDIUM, HIGH)
-│   │   │       │   ├── TaskStatus.java     # Status enum (PENDING, IN_PROGRESS, COMPLETED)
-│   │   │       │   └── TaskStatistics.java # Immutable metrics DTO
-│   │   │       ├── service/
-│   │   │       │   ├── FileStorageService.java  # Atomic JSON persistence
-│   │   │       │   ├── TaskService.java         # Thread-safe repository (RWLock)
-│   │   │       │   └── StatisticsService.java   # Stream-based metrics calculator
-│   │   │       ├── concurrency/
-│   │   │       │   ├── AutoSaveTask.java        # Periodic background save
-│   │   │       │   ├── DeadlineMonitor.java     # Real-time deadline watcher
-│   │   │       │   ├── StatisticsWorker.java    # Offloaded metrics worker
-│   │   │       │   └── ConcurrencyDemo.java     # Pedagogical race condition demo
-│   │   │       └── ui/
-│   │   │           ├── UITheme.java             # Pure Java styling helper
-│   │   │           ├── TaskDialog.java          # Modal Add/Edit dialog
-│   │   │           ├── DashboardView.java       # KPI cards and urgent table
-│   │   │           ├── TaskView.java            # CRUD TableView, search & filters
-│   │   │           ├── StatisticsView.java      # Visual analytics and lab runner
-│   │   │           ├── AboutView.java           # Academic metadata & viva notes
-│   │   │           └── MainView.java            # Master layout & thread manager
-│   │   └── resources/
-│   │       └── css/
-│   │           └── styles.css               # Modern desktop styling
-│   └── test/
-│       └── java/
-│           └── com/taskmanager/
-│               ├── TaskServiceTest.java         # Unit & concurrency tests
-│               └── StatisticsServiceTest.java   # Metric calculations tests
+
+Or manually:
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot"
+$env:PATH = "$env:JAVA_HOME\bin;C:\Program Files\apache-maven-3.9.6\bin;$env:PATH"
+& "C:\Program Files\apache-maven-3.9.6\bin\mvn.cmd" javafx:run
 ```
 
 ---
 
-## Java Compilation vs. C Compilation
+## Technology Stack
 
-| Dimension | C Compilation Pipeline | Java Compilation Pipeline |
-| :--- | :--- | :--- |
-| **Model** | Direct static compilation to native binary | Hybrid: Compile to Bytecode, Interpret/JIT at runtime |
-| **Compiler** | `gcc` (GNU Compiler Collection) | `javac` (Java Compiler) |
-| **Intermediate** | Assembly (`.s`), Relocatable Object (`.o`) | Platform-independent Bytecode (`.class`) |
-| **Target Output** | Native binary (`.exe` on Win, ELF on Linux) | Portable bytecode executed by the JVM |
-| **Portability** | Source-code portable ("Recompile anywhere") | Binary portable ("Write Once, Run Anywhere - WORA") |
-| **Memory** | Manual memory allocation (`malloc`/`free`) | Automatic memory management (JVM Garbage Collection) |
+| Component | Technology |
+|-----------|-----------|
+| Language | Java 17 LTS |
+| GUI | JavaFX 17 (OpenJFX) |
+| Database | SQLite 3 via JDBC (sqlite-jdbc 3.45) |
+| JSON | Jackson Databind 2.16 |
+| Build | Apache Maven 3.9 |
+| Testing | JUnit Jupiter 5.10 |
+| VCS | Git |
 
-### Terminal Verification
-Refer to [docs/compilation/compilation.md](file:///d:/project/docs/compilation/compilation.md) for full commands:
+---
+
+## Project Structure
+
+```
+src/main/java/com/taskmanager/
+├── Main.java                          ← launcher (non-module-path safe)
+├── MainApp.java                       ← JavaFX Application lifecycle
+├── model/
+│   ├── Task.java                      ← domain entity (copy constructor, isOverdue)
+│   ├── TaskPriority.java              ← enum (HIGH, MEDIUM, LOW)
+│   ├── TaskStatus.java                ← enum (PENDING, IN_PROGRESS, COMPLETED)
+│   ├── TaskStatistics.java            ← statistics DTO
+│   ├── OnlineData.java                ← HTTP API response DTO
+│   ├── User.java                      ← relational user entity
+│   └── Category.java                  ← relational category entity
+├── dao/
+│   ├── TaskDAO.java                   ← CRUD via JDBC PreparedStatement
+│   ├── UserDAO.java                   ← user reads
+│   └── CategoryDAO.java               ← category reads
+├── database/
+│   ├── DatabaseConnection.java        ← JDBC connection + PRAGMA foreign_keys=ON
+│   └── DatabaseInitializer.java       ← DDL CREATE TABLE + seed data
+├── service/
+│   ├── TaskService.java               ← business logic, thread-safe cache, delegates to DAO
+│   ├── StatisticsService.java         ← computes TaskStatistics from task list
+│   ├── FileStorageService.java        ← JSON file persistence (fallback)
+│   └── NetworkService.java            ← HttpClient → JSON → OnlineData
+├── concurrency/
+│   ├── BackgroundTaskManager.java     ← owns ExecutorService + ScheduledExecutorService
+│   ├── AutoSaveTask.java              ← Runnable: periodic save (30 s)
+│   ├── DeadlineMonitor.java           ← Runnable: periodic overdue scan (10 s)
+│   ├── StatisticsWorker.java          ← Callable<TaskStatistics>: async stats
+│   └── ConcurrencyDemo.java           ← live race condition + sync demo
+└── ui/
+    ├── MainView.java                  ← BorderPane: header + 5 tabs + status bar
+    ├── DashboardView.java             ← KPI cards + urgent tasks table
+    ├── TaskView.java                  ← full CRUD TableView + search/filter
+    ├── StatisticsView.java            ← stats cards + concurrency lab
+    ├── OnlineDataView.java            ← HTTP fetch + JSON display
+    ├── AboutView.java                 ← viva notes + demo checklist
+    ├── TaskDialog.java                ← Add/Edit task form dialog
+    └── UITheme.java                   ← theme constants
+```
+
+---
+
+## Database Integration
+
+### Why SQLite?
+
+SQLite is the ideal choice for a desktop assignment because:
+- **Serverless**: No installation needed; works as a single `.db` file
+- **Lightweight**: < 1 MB library, perfect for embedded use
+- **Standard SQL**: Uses standard ANSI SQL with full JOIN, FK, constraints
+- **Java support**: `sqlite-jdbc` driver makes JDBC integration trivial
+
+### Database File
+
+```
+data/taskmanager.db        ← created automatically on first run
+```
+
+### ER Diagram
+
+```
+users (1)
+  |
+  |  1:N  (one user owns many tasks)
+  ↓
+tasks ──── N:1 ────> categories
+```
+
+### Schema & Relationships
+
+```sql
+-- Primary key: uniquely identifies each user
+CREATE TABLE IF NOT EXISTS users (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    name  TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL
+);
+
+-- Primary key: uniquely identifies each category
+CREATE TABLE IF NOT EXISTS categories (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
+-- tasks.user_id → Foreign key → users.id     (One user : Many tasks)
+-- tasks.category_id → Foreign key → categories.id  (Many tasks : One category)
+CREATE TABLE IF NOT EXISTS tasks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL,
+    category_id INTEGER,
+    title       TEXT NOT NULL,
+    description TEXT,
+    priority    TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    deadline    TEXT,
+    completed   INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id)     REFERENCES users(id)      ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
+);
+
+-- SQLite requires explicit activation of FK enforcement
+PRAGMA foreign_keys = ON;
+```
+
+**Key Concepts:**
+- **Primary Key**: Uniquely identifies a row. `AUTOINCREMENT` ensures no reuse of deleted IDs.
+- **Foreign Key**: `tasks.user_id` references `users.id`, creating a hard link between tables.
+- **One-to-Many**: One user can own many tasks. One category can group many tasks.
+- **Referential Integrity**: `ON DELETE CASCADE` ensures deleting a user also deletes their tasks.
+- **Default User**: User ID=1 ("Default Student") is seeded automatically so the UI doesn't need a login screen, while still demonstrating the FK relationship.
+
+---
+
+## CRUD Operations
+
+All four CRUD operations are performed against SQLite via `TaskDAO` using `PreparedStatement`.
+
+| Operation | Java Method | SQL Statement | Trigger |
+|-----------|-------------|--------------|---------|
+| **CREATE** | `TaskDAO.createTask()` | `INSERT INTO tasks (...) VALUES (?,?,?,?,?,?,?,?,?)` | Click "+ Add Task" in Tasks tab |
+| **READ** | `TaskDAO.getAllTasks()` | `SELECT t.*, u.name, c.name FROM tasks t JOIN users u ON t.user_id=u.id LEFT JOIN categories c ON t.category_id=c.id` | App startup, tab switch, after any change |
+| **UPDATE** | `TaskDAO.updateTask()` | `UPDATE tasks SET title=?, description=?, priority=?, status=?, deadline=?, completed=? WHERE id=?` | Click "Edit Task" or "Mark Completed" |
+| **DELETE** | `TaskDAO.deleteTask()` | `DELETE FROM tasks WHERE id=?` | Click "Delete Task" with confirmation |
+
+### PreparedStatement (prevents SQL Injection)
+
+```java
+// ✅ SAFE — parameterized
+String sql = "INSERT INTO tasks (user_id, category_id, title, ...) VALUES (?, ?, ?, ...)";
+PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+pstmt.setInt(1, userId);
+pstmt.setString(3, task.getTitle());  // user input safely bound
+pstmt.executeUpdate();
+
+// ❌ DANGEROUS — never do this (SQL injection risk)
+// stmt.execute("INSERT INTO tasks VALUES (" + userInput + ")");
+```
+
+---
+
+## Concurrency — Multithreading & Thread Pools
+
+### Architecture
+
+```
+BackgroundTaskManager  (single concurrency hub, created in MainApp)
+  │
+  ├── generalThreadPool  : Executors.newFixedThreadPool(4)
+  │     Used for:
+  │     ├── NetworkService.fetchOnlineDataAsync()   ← HTTP GET requests
+  │     └── StatisticsWorker async calculation
+  │
+  └── scheduledThreadPool : Executors.newScheduledThreadPool(2)
+        Used for:
+        ├── AutoSaveTask    ← every 30 s, saves data off the UI thread
+        └── DeadlineMonitor ← every 10 s, scans for overdue tasks
+```
+
+### Where Thread is Used
+
+```java
+// BackgroundTaskManager.runStandaloneThread() — explicit new Thread creation
+Thread standaloneThread = new Thread(task);
+standaloneThread.setName("Standalone-Worker");
+standaloneThread.setDaemon(true);
+standaloneThread.start();
+```
+
+### Where ExecutorService (Thread Pool) is Used
+
+```java
+// THREAD POOL: Fixed pool — reuses 4 threads for background operations
+// Avoids OS overhead of creating a new Thread for every task
+private final ExecutorService generalThreadPool =
+    Executors.newFixedThreadPool(4, namedThreadFactory("DB-Network-Worker"));
+
+// Submit network task to pool
+generalThreadPool.submit(() -> {
+    // HTTP request runs here — NOT on JavaFX Application Thread
+});
+```
+
+### Where ScheduledExecutorService is Used
+
+```java
+// SCHEDULED THREAD POOL: Periodic tasks
+private final ScheduledExecutorService scheduledThreadPool =
+    Executors.newScheduledThreadPool(2, namedThreadFactory("Scheduled-Monitor"));
+
+// AutoSave every 30 seconds
+scheduledThreadPool.scheduleWithFixedDelay(autoSaveTask, 15, 30, TimeUnit.SECONDS);
+
+// DeadlineMonitor every 10 seconds
+scheduledThreadPool.scheduleWithFixedDelay(deadlineMonitor, 2, 10, TimeUnit.SECONDS);
+```
+
+### Why Thread Pool > Repeatedly Creating New Threads
+
+| Concern | New Thread each time | Thread Pool |
+|---------|---------------------|------------|
+| OS cost | High (~1 MB stack allocation per thread) | Low (threads are reused) |
+| Scalability | 1000 requests = 1000 threads (OutOfMemoryError) | 1000 requests → 4 threads handle them in queue |
+| Lifecycle | Orphaned threads risk on shutdown | Clean `awaitTermination()` shutdown |
+| Naming / Monitoring | Hard to identify | Custom thread names via `ThreadFactory` |
+
+### Thread Safety in TaskService
+
+```java
+// ReentrantReadWriteLock — multiple threads can READ concurrently
+// but only ONE thread can WRITE at a time
+private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+
+readLock.lock();   // ← multiple background threads can hold this simultaneously
+try { return new ArrayList<>(taskMap.values()); }
+finally { readLock.unlock(); }
+
+writeLock.lock();  // ← exclusive — no other reader or writer can proceed
+try { taskMap.put(task.getId(), task); }
+finally { writeLock.unlock(); }
+```
+
+### JavaFX Thread Safety
+
+```java
+// ❌ WRONG — updating a Label from a background thread throws IllegalStateException
+label.setText("result");   // called from pool thread
+
+// ✅ CORRECT — dispatch to JavaFX Application Thread via Platform.runLater
+Platform.runLater(() -> label.setText("result"));
+```
+
+---
+
+## Networking & JSON Parsing
+
+### Architecture Flow
+
+```
+User clicks [Fetch Online Data]
+          ↓
+  JavaFX Application Thread
+          ↓
+  networkService.fetchOnlineDataAsync(backgroundTaskManager, ...)
+          ↓
+  backgroundTaskManager.submit(Runnable)
+          ↓
+  ExecutorService Thread Pool (DB-Network-Worker-N)
+          ↓
+  HttpClient.newBuilder()
+    .connectTimeout(6s)
+    .build()
+    .send(HttpRequest.GET("https://dummyjson.com/quotes/random"),
+          BodyHandlers.ofString())
+          ↓
+  HttpResponse<String>  (statusCode + body)
+          ↓
+  Jackson ObjectMapper.readTree(responseBody)  → JsonNode
+          ↓
+  OnlineData object  { id, content, author, httpStatusCode, fetchedAt, threadName }
+          ↓
+  Platform.runLater(() -> uiCallback.accept(onlineData))
+          ↓
+  JavaFX Application Thread updates labels in OnlineDataView
+```
+
+### Sample JSON Response
+
+```json
+{
+  "id": 72,
+  "quote": "The secret of getting ahead is getting started.",
+  "author": "Mark Twain"
+}
+```
+
+### Java Implementation (NetworkService.java)
+
+```java
+// 1. Build HTTP Request
+HttpRequest request = HttpRequest.newBuilder()
+    .uri(URI.create("https://dummyjson.com/quotes/random"))
+    .timeout(Duration.ofSeconds(7))
+    .header("Accept", "application/json")
+    .GET()
+    .build();
+
+// 2. Send HTTP Request (blocking — runs on pool thread, not FX thread)
+HttpResponse<String> response = httpClient.send(request, BodyHandlers.ofString());
+int statusCode = response.statusCode();
+String body    = response.body();
+
+// 3. Parse JSON → Java object
+JsonNode root  = objectMapper.readTree(body);
+String quote   = root.get("quote").asText();
+String author  = root.get("author").asText();
+
+// 4. Wrap into Java DTO
+OnlineData data = new OnlineData(id, quote, author, url, statusCode, time, threadName, body);
+
+// 5. Dispatch to JavaFX thread safely
+Platform.runLater(() -> onSuccess.accept(data));
+```
+
+### Error Handling
+
+| Error Scenario | Exception Caught | User Feedback |
+|---------------|-----------------|--------------|
+| No internet | `IOException` | "Network Error: Could not connect..." |
+| HTTP 4xx/5xx | Checked manually | "HTTP Error 404: ..." |
+| Timeout (7s) | `HttpTimeoutException` (→ `IOException`) | "Network Error: timeout" |
+| Bad JSON | `JsonProcessingException` | "JSON Parsing Error: ..." |
+| Thread interrupt | `InterruptedException` | "Network request was interrupted" |
+
+---
+
+## C and Java Compilation
+
+### C Compilation (GCC — Native Machine Code)
+
+```
+hello.c  →  [GCC Preprocessor]  →  [GCC Compiler]  →  [Linker]  →  hello.exe
+                                                          (native machine code)
+```
+
 ```bash
-# C Compilation:
-gcc docs/compilation/hello.c -o hello.exe
-.\hello.exe
-
-# Java Compilation:
-javac docs/compilation/Hello.java
-java -cp docs/compilation Hello
+gcc hello.c -o hello
+./hello        # executes directly on CPU
 ```
 
----
+### Java Compilation (JVM — Bytecode)
 
-## JVM vs. JRE vs. JDK
-
-- **JVM (Java Virtual Machine)**: The abstract runtime computing engine that loads `.class` bytecode, verifies bytecode integrity via the Bytecode Verifier, and executes instructions using an interpreter and the HotSpot Just-In-Time (JIT) compiler.
-- **JRE (Java Runtime Environment)**: A bundle containing the JVM plus the core Java Class Libraries (e.g. `java.base`, `java.desktop`) and configuration files required to *run* compiled Java software.
-- **JDK (Java Development Kit)**: The complete software development environment containing the JRE plus command-line tools for development (`javac`, `jar`, `javap`, `jdb`, `javadoc`).
-
----
-
-## Multithreading and Concurrency
-
-### Why and Where Multiple Threads Are Used:
-
-1. **AutoSaveTask (`ScheduledExecutorService`)**:
-   - *Problem*: Disk writing involves file system I/O latencies. If executed on the UI thread, user keystrokes and button clicks will stutter.
-   - *Solution*: A scheduled background thread executes every 30 seconds, taking an immutable snapshot of tasks and atomically writing to `data/tasks.json`.
-
-2. **DeadlineMonitor (`ScheduledExecutorService`)**:
-   - *Problem*: System time changes continuously. Checking deadlines synchronously inside the UI event loop causes overhead.
-   - *Solution*: A daemon thread executes every 10 seconds, identifies overdue tasks, and dispatches UI warnings via `Platform.runLater()`.
-
-3. **StatisticsWorker (`ExecutorService` / `Callable<TaskStatistics>`)**:
-   - *Problem*: Iterating over tasks to compute completion percentages, category ratios, and overdue metrics consumes CPU time.
-   - *Solution*: Statistics are calculated in worker threads and delivered asynchronously to JavaFX components.
-
-### Solving Concurrency & Race Conditions:
-- **`ReentrantReadWriteLock` in `TaskService`**: Allows unlimited concurrent reader threads (`AutoSaveTask`, `DeadlineMonitor`, `StatisticsWorker`) without mutual blocking, while acquiring an exclusive write lock when the user adds, edits, or deletes tasks.
-- **Defensive Copying**: `taskService.getTasksSnapshot()` returns independent clones of `Task` objects, eliminating `ConcurrentModificationException`.
-- **JavaFX Single-Threaded Rule**: Direct calls to JavaFX components from worker threads violate JavaFX threading constraints. All UI updates are channeled through `Platform.runLater(Runnable)`.
-
----
-
-## JavaFX GUI Architecture
-
-- **Root Structure**: `BorderPane` with Header Banner at `Top`, `TabPane` at `Center`, and Status Bar at `Bottom`.
-- **Dashboard View**: 5 KPI cards displaying Total, Pending, In Progress, Completed, and Overdue tasks, plus an urgent tasks table.
-- **Tasks View**: Full CRUD interface featuring real-time search, multi-field filtering (Status + Priority), and a responsive `TableView` with custom badge cell renderers.
-- **Statistics View**: Dynamic progress bars, priority histograms, asynchronous computation triggers, and an interactive Concurrency Lab.
-- **About View**: Academic project details, student metadata placeholder, and viva revision cards.
-
----
-
-## Git and Version Control
-
-### Recommended Git Workflow
-```bash
-# 1. Initialize local repository
-git init
-
-# 2. Add files and make initial commit
-git add .
-git commit -m "feat: Initial commit with Maven configuration and project skeleton"
-
-# 3. Create feature branches
-git branch feature/task-model
-git checkout feature/task-model
-# ... implement domain model ...
-git commit -am "feat: Add Task entity, TaskPriority, and TaskStatus enums"
-
-# 4. Implement Concurrency branch
-git checkout -b feature/concurrency
-# ... implement AutoSaveTask, DeadlineMonitor, and RWLock ...
-git commit -am "feat: Implement multithreaded auto-save, deadline watcher, and ReentrantReadWriteLock"
-
-# 5. Merge back to main branch
-git checkout main
-git merge feature/concurrency
 ```
-
-### Essential Commands Summary
-- `git init`: Initializes a new Git repository.
-- `git add <files>`: Stages modified files for commit.
-- `git commit -m "<msg>"`: Records staged snapshot to repository history.
-- `git branch`: Lists, creates, or deletes branches.
-- `git switch <branch>` / `git checkout <branch>`: Swaps active branch.
-- `git merge <branch>`: Combines histories of specified branch into current branch.
-- `git status`: Displays status of working directory and staging area.
-- `git log --oneline --graph`: Shows commit visualization tree.
-
----
-
-## How to Build and Run
-
-### Prerequisites
-- JDK 17 (Eclipse Temurin or OpenJDK 17)
-- Apache Maven 3.8+
-
-### Execution Commands
+Hello.java  →  [javac compiler]  →  Hello.class (bytecode)  →  [JVM]  →  CPU
+                                     (platform-independent)    interprets/JIT
+```
 
 ```bash
-# 1. Clean and compile the project:
-mvn clean compile
-
-# 2. Run automated test suite:
-mvn test
-
-# 3. Launch the JavaFX Application:
-mvn javafx:run
-
-# 4. Package as an executable JAR:
-mvn clean package
-java -jar target/taskmanager-desktop-1.0.0.jar
+javac Hello.java
+java Hello      # JVM executes bytecode
 ```
 
-*Note: On Windows, you can simply double-click `build.bat`, `test.bat`, or `run.bat`.*
+**Key Difference**: C compiles to native machine code (platform-specific). Java compiles to bytecode that runs on the JVM (Write Once, Run Anywhere).
 
 ---
 
-## Screenshots
+## Git Version Control
 
-> *Placeholder: Add application screenshots below for submission report.*
+### Commit History
 
-1. **Dashboard Overview**:
-   `[SCREENSHOT_PLACEHOLDER: dashboard_view.png]`
-2. **Tasks TableView with Filtering**:
-   `[SCREENSHOT_PLACEHOLDER: tasks_crud_view.png]`
-3. **Add/Edit Task Dialog Form**:
-   `[SCREENSHOT_PLACEHOLDER: task_dialog_modal.png]`
-4. **Statistics & Concurrency Experimentation**:
-   `[SCREENSHOT_PLACEHOLDER: statistics_concurrency_lab.png]`
+```bash
+git log --oneline
+```
 
----
-
-## Testing Suite
-
-The project includes thorough JUnit 5 tests in `src/test/java/com/taskmanager/`:
-- `TaskServiceTest.java`:
-  - `testAddTask()`: Validates auto-incrementing ID generation and assignment.
-  - `testAddTaskBlankTitle()`: Tests exception handling on invalid inputs.
-  - `testUpdateTask()` & `testDeleteTask()`: Validates mutation and deletion operations.
-  - `testSearchAndFilter()`: Tests Java 8 Stream keyword and status/priority queries.
-  - `testOverdueDetection()`: Tests date comparison logic.
-  - `testSaveAndLoad()`: Tests JSON disk persistence and roundtrip recovery.
-  - `testConcurrentAddsAreThreadSafe()`: Spawns 20 threads simultaneously writing tasks to prove absence of race conditions.
-- `StatisticsServiceTest.java`:
-  - `testEmptyList()`: Validates edge cases for zero tasks.
-  - `testStatisticsAggregations()`: Tests percentage calculations and category distributions.
+Key commits:
+- `Initial complete commit` — full project scaffold, JavaFX UI, JSON persistence
+- `feat: Integrate SQLite CRUD via TaskDAO` — replaced JSON storage with real SQLite DB
+- `feat: Add OnlineDataView` — HTTP networking, JSON parsing, thread pool integration
+- `feat: Add BackgroundTaskManager` — shared ExecutorService + ScheduledExecutorService
+- Future: `fix:`, `docs:`, `test:` commits as needed
 
 ---
 
-## Learning Outcomes
+## Assignment Demonstration Checklist
 
-1. **Java Syntax & OOP**: Encapsulation, inheritance, polymorphism, records/enums, functional interfaces, lambda expressions, and Java 8 Streams.
-2. **Compilation Differences**: GCC native machine translation vs. `javac` intermediate bytecode compilation.
-3. **JVM Architecture**: ClassLoader mechanics, memory areas (Heap, Metaspace, Stack), and JIT compilation.
-4. **Desktop GUI Engineering**: JavaFX stage/scene lifecycle, layout containers, TableView bindings, custom cell factories, and modal dialogs.
-5. **Multithreading**: `Runnable`, `Callable`, `ExecutorService`, and `ScheduledExecutorService` for responsive desktop applications.
-6. **Thread Safety**: Eliminating race conditions using `ReentrantReadWriteLock`, deep copying, and `Platform.runLater()`.
-7. **Version Control**: Git staging, committing, branching strategies, and `.gitignore` hygiene.
+### Database & CRUD
+1. Open application → `data/taskmanager.db` auto-created
+2. Tasks tab → **"+ Add Task"** → fill form → Save → `INSERT` executes in `TaskDAO`
+3. Open `data/taskmanager.db` in DB Browser → `SELECT * FROM tasks;` → show row
+4. Select task → **"Edit Task"** → change title → Save → `UPDATE` in `TaskDAO`
+5. Select task → **"Delete Task"** → confirm → `DELETE` in `TaskDAO`
+6. Show `TaskDAO.java` → highlight `PreparedStatement`, `RETURN_GENERATED_KEYS`, `JOIN`
+
+### Concurrency
+7. Status bar: `Auto-Save: ✓ ...` updates every 30 s (background `ScheduledExecutorService`)
+8. Status bar: `Deadlines: ...` updates every 10 s (background scheduled thread)
+9. Statistics tab → **"⚠️ Run Race Condition"** → count ≠ 1000 (data corruption)
+10. **"✅ Run Thread-Safe Test"** → count = 1000 (ReentrantReadWriteLock works)
+11. Show `BackgroundTaskManager.java` → `newFixedThreadPool(4)` + `newScheduledThreadPool(2)`
+12. Show `MainView.java → initBackgroundTasks()` → `scheduleWithFixedDelay()`
+13. Explain `Platform.runLater()` — JavaFX single-threaded UI rule
+
+### Networking
+14. Click **"🌐 Online Data"** tab → click **"Fetch Online Productivity Quote"**
+15. Status: "Fetching..." → "✅ Data loaded successfully (HTTP 200)"
+16. Show parsed quote, author, HTTP status, **worker thread name** (not FX thread!)
+17. Show raw JSON in text area
+18. Show `NetworkService.java` → `HttpClient`, `HttpRequest`, `HttpResponse`, `ObjectMapper.readTree()`
+19. Disconnect internet → Fetch → error handled gracefully (no crash)
+
+### Git
+20. `git log --oneline` → show commit history
+21. Meaningful commit messages for each feature added
 
 ---
 
-## Viva Examination Guide
+## Viva Q&A Reference
 
-Review [docs/assignment-report.md](file:///d:/project/docs/assignment-report.md) for full viva sample questions and detailed answers.
+### Database
+| Question | Answer |
+|----------|--------|
+| Why SQLite? | Lightweight, serverless, file-based — no server installation needed for desktop apps |
+| What is JDBC? | Java Database Connectivity — standard Java API for SQL database access |
+| What is a primary key? | Uniquely identifies each row; cannot be NULL or duplicate |
+| What is a foreign key? | References a PK in another table; enforces referential integrity |
+| What is a relationship? | How tables are linked. Here: users 1:N tasks, tasks N:1 categories |
+| What is a JOIN? | Combines rows from two tables based on a matching column value |
+| Why PreparedStatement? | Prevents SQL injection; precompiled for performance |
+| DELETE vs DROP? | DELETE removes rows; DROP removes the entire table structure |
+| Why PRAGMA foreign_keys? | SQLite disables FK enforcement by default; this PRAGMA activates it |
+
+### Concurrency
+| Question | Answer |
+|----------|--------|
+| What is multithreading? | Running multiple threads concurrently within one JVM process |
+| What is a thread pool? | Pre-created reusable threads managed by ExecutorService |
+| Why pool over new Thread()? | Reuse avoids ~1 MB OS allocation per thread; limits max concurrent threads |
+| What is ScheduledExecutorService? | Runs tasks at fixed intervals without manual `sleep()` loops |
+| What is a race condition? | Concurrent unsynchronized writes causing data corruption |
+| What is synchronization? | Using locks (ReentrantReadWriteLock) to control shared access |
+| Why can't background thread update FX controls? | JavaFX enforces single-threaded UI — use `Platform.runLater()` |
+
+### Networking
+| Question | Answer |
+|----------|--------|
+| What is HTTP? | HyperText Transfer Protocol — request/response protocol for web data |
+| What is HTTP GET? | Retrieves data from a server without modifying it |
+| What is JSON? | JavaScript Object Notation — lightweight text format for data interchange |
+| How is JSON parsed? | `Jackson ObjectMapper.readTree()` converts JSON string to `JsonNode` tree |
+| What is HttpClient? | `java.net.http.HttpClient` (Java 11+) — modern HTTP client API |
+| Why network in background? | Network I/O blocks; blocking FX thread freezes the UI |
+| What if API is unavailable? | `IOException` caught → error dispatched via `Platform.runLater()` to status label |
