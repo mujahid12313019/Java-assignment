@@ -33,6 +33,12 @@ public class Task {
 
     private boolean completed;
 
+    // Relational Foreign Key & Display Attributes
+    private int userId = 1;
+    private Integer categoryId = 1;
+    private String userName = "Default Student";
+    private String categoryName = "Academic / Coursework";
+
     /**
      * Default No-Arg Constructor required by Jackson for JSON deserialization.
      */
@@ -41,6 +47,8 @@ public class Task {
         this.status = TaskStatus.PENDING;
         this.priority = TaskPriority.MEDIUM;
         this.completed = false;
+        this.userId = 1;
+        this.categoryId = 1;
     }
 
     /**
@@ -75,6 +83,10 @@ public class Task {
             this.createdDateTime = other.createdDateTime;
             this.deadline = other.deadline;
             this.completed = other.completed;
+            this.userId = other.userId;
+            this.categoryId = other.categoryId;
+            this.userName = other.userName;
+            this.categoryName = other.categoryName;
         }
     }
 
@@ -175,6 +187,53 @@ public class Task {
             this.status = TaskStatus.COMPLETED;
         } else if (this.status == TaskStatus.COMPLETED) {
             this.status = TaskStatus.IN_PROGRESS;
+        }
+    }
+
+    public int getUserId() {
+        return userId;
+    }
+
+    public void setUserId(int userId) {
+        this.userId = userId;
+    }
+
+    public Integer getCategoryId() {
+        return categoryId;
+    }
+
+    public void setCategoryId(Integer categoryId) {
+        this.categoryId = categoryId;
+    }
+
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getCategoryName() {
+        return categoryName;
+    }
+
+    public void setCategoryName(String categoryName) {
+        this.categoryName = categoryName;
+    }
+
+    /**
+     * Extracts an integer database ID from the string representation.
+     */
+    public int getIntId() {
+        if (id == null || id.trim().isEmpty()) return 0;
+        try {
+            if (id.startsWith("TSK-")) {
+                return Integer.parseInt(id.substring(4));
+            }
+            return Integer.parseInt(id.trim());
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 

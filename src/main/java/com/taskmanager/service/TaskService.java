@@ -1,5 +1,6 @@
 package com.taskmanager.service;
 
+import com.taskmanager.dao.TaskDAO;
 import com.taskmanager.model.Task;
 import com.taskmanager.model.TaskPriority;
 import com.taskmanager.model.TaskStatus;
@@ -17,7 +18,7 @@ import java.util.stream.Collectors;
 
 /**
  * TaskService
- * Central business logic layer managing in-memory tasks and persistence coordination.
+ * Central business logic layer managing in-memory task cache AND SQLite persistence via TaskDAO.
  *
  * Demonstrates:
  * - Thread-Safe State Management via ReentrantReadWriteLock
@@ -25,42 +26,55 @@ import java.util.stream.Collectors;
  * - Defensive Copying to prevent ConcurrentModificationException
  * - Java Streams API for functional searching, filtering, and sorting
  * - Observer Pattern via change listeners for reactive UI synchronization
+ * - SQLite CRUD operations delegated to TaskDAO (JDBC + PreparedStatement)
  */
 public class TaskService {
 
     private static final Logger LOGGER = Logger.getLogger(TaskService.class.getName());
 
-    // In-memory task repository (Keyed by Task ID for O(1) lookups)
+    // In-memory task cache (Keyed by Task ID for O(1) lookups)
     private final Map<String, Task> taskMap = new LinkedHashMap<>();
 
-    // Concurrency Lock: Read-Write Lock allows concurrent reads from background workers
+    // CONCURRENCY: Read-Write Lock allows concurrent reads from background workers
+    // while writes are mutually exclusive (no race conditions on task data)
     private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock.ReadLock readLock = rwLock.readLock();
     private final ReentrantReadWriteLock.WriteLock writeLock = rwLock.writeLock();
 
-    // File storage persistence service
+    // SQLite DAO for real JDBC database operations
+    private final TaskDAO taskDAO;
+
+    // Legacy JSON file storage (kept for backward-compatibility / export)
     private final FileStorageService storageService;
 
-    // Thread-safe change listeners for notifying controllers
+    // Thread-safe change listeners for notifying UI controllers via Platform.runLater
     private final List<Runnable> changeListeners = new CopyOnWriteArrayList<>();
 
-    // ID counter generator
+    // Fallback ID counter (used only when DB ID is not available)
     private final AtomicInteger idCounter = new AtomicInteger(1000);
 
-    public TaskService(FileStorageService storageService) {
+    // Flag: whether SQLite is available and in use
+    private boolean dbAvailable = false;
+
+    public TaskService(TaskDAO taskDAO, FileStorageService storageService) {
+        this.taskDAO = taskDAO;
         this.storageService = storageService != null ? storageService : new FileStorageService();
+        this.dbAvailable = (taskDAO != null);
     }
 
+    public TaskService(FileStorageService storageService) {
+        this(null, storageService);
+    }
+
+    /** Constructor used in unit tests (in-memory only, no DAO, no file) */
     public TaskService() {
-        this(new FileStorageService());
+        this(null, new FileStorageService());
     }
 
     // ================= Change Listener Registration =================
 
     public void addChangeListener(Runnable listener) {
-        if (listener != null) {
-            changeListeners.add(listener);
-        }
+        if (listener != null) changeListeners.add(listener);
     }
 
     public void removeChangeListener(Runnable listener) {
@@ -80,25 +94,39 @@ public class TaskService {
     // ================= Persistence Operations =================
 
     /**
-     * Loads tasks from disk into memory.
+     * Loads tasks from SQLite database into the in-memory cache.
+     * Falls back to JSON file if SQLite is unavailable.
      */
     public void load() throws IOException {
         writeLock.lock();
         try {
-            List<Task> loaded = storageService.loadTasks();
             taskMap.clear();
-            int maxIdNum = 1000;
-            for (Task t : loaded) {
-                taskMap.put(t.getId(), t);
-                if (t.getId() != null && t.getId().startsWith("TSK-")) {
-                    try {
-                        int num = Integer.parseInt(t.getId().substring(4));
-                        if (num > maxIdNum) maxIdNum = num;
-                    } catch (NumberFormatException ignored) {}
+            if (dbAvailable) {
+                // PRIMARY: Load from SQLite database via TaskDAO (real JDBC SELECT with JOIN)
+                List<Task> loaded = taskDAO.getAllTasks();
+                for (Task t : loaded) {
+                    taskMap.put(t.getId(), t);
                 }
+                LOGGER.info("TaskService loaded " + taskMap.size() + " tasks from SQLite database.");
+            } else {
+                // FALLBACK: Load from JSON file storage
+                List<Task> loaded = storageService.loadTasks();
+                int maxIdNum = 1000;
+                for (Task t : loaded) {
+                    taskMap.put(t.getId(), t);
+                    if (t.getId() != null && t.getId().startsWith("TSK-")) {
+                        try {
+                            int num = Integer.parseInt(t.getId().substring(4));
+                            if (num > maxIdNum) maxIdNum = num;
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+                idCounter.set(maxIdNum + 1);
+                LOGGER.info("TaskService loaded " + taskMap.size() + " tasks from JSON file (DB unavailable).");
             }
-            idCounter.set(maxIdNum + 1);
-            LOGGER.info("TaskService loaded " + taskMap.size() + " tasks.");
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Failed to load tasks", e);
+            throw new IOException("Load failed: " + e.getMessage(), e);
         } finally {
             writeLock.unlock();
         }
@@ -106,18 +134,26 @@ public class TaskService {
     }
 
     /**
-     * Saves current in-memory tasks to disk.
+     * Saves current in-memory tasks to disk (used by AutoSaveTask background thread).
+     * When SQLite is in use, in-memory cache IS the DB mirror — export to JSON as backup.
      */
     public void save() throws IOException {
-        List<Task> snapshot = getTasksSnapshot();
-        storageService.saveTasks(snapshot);
-        LOGGER.info("TaskService saved " + snapshot.size() + " tasks to disk.");
+        if (!dbAvailable) {
+            // JSON persistence when no DB
+            List<Task> snapshot = getTasksSnapshot();
+            storageService.saveTasks(snapshot);
+            LOGGER.fine("TaskService saved " + snapshot.size() + " tasks to JSON file.");
+        } else {
+            // SQLite is auto-persistent; auto-save just logs a heartbeat
+            LOGGER.fine("SQLite auto-save heartbeat: " + getTaskCount() + " tasks live in DB.");
+        }
     }
 
-    // ================= CRUD Operations =================
+    // ================= CRUD Operations (wired to SQLite) =================
 
     /**
-     * Adds a new task with validation and auto-generated ID if missing.
+     * CREATE: Adds a new task. Inserts into SQLite and updates in-memory cache.
+     * SQL: INSERT INTO tasks (...) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
      */
     public Task addTask(String title, String description, TaskPriority priority,
                         TaskStatus status, LocalDate deadline) {
@@ -125,9 +161,8 @@ public class TaskService {
             throw new IllegalArgumentException("Task title cannot be empty.");
         }
 
-        String id = "TSK-" + idCounter.getAndIncrement();
         Task task = new Task(
-                id,
+                null, // ID will be assigned by DB (AUTOINCREMENT) or counter
                 title.trim(),
                 description != null ? description.trim() : "",
                 priority != null ? priority : TaskPriority.MEDIUM,
@@ -136,6 +171,23 @@ public class TaskService {
                 deadline,
                 status == TaskStatus.COMPLETED
         );
+        task.setUserId(1);
+        task.setCategoryId(1);
+        task.setUserName("Default Student");
+        task.setCategoryName("Academic / Coursework");
+
+        if (dbAvailable) {
+            try {
+                // SQL CREATE: INSERT into SQLite via PreparedStatement
+                taskDAO.createTask(task, 1, 1);
+                LOGGER.info("SQL CREATE: Inserted task id=" + task.getId() + " into SQLite.");
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "SQL CREATE failed, falling back to in-memory only", e);
+                task.setId("TSK-" + idCounter.getAndIncrement());
+            }
+        } else {
+            task.setId("TSK-" + idCounter.getAndIncrement());
+        }
 
         writeLock.lock();
         try {
@@ -149,28 +201,34 @@ public class TaskService {
     }
 
     /**
-     * Updates an existing task with validation.
+     * UPDATE: Modifies an existing task. Updates SQLite record and in-memory cache.
+     * SQL: UPDATE tasks SET title=?, description=?, priority=?, status=?, deadline=?, completed=? WHERE id=?
      */
     public boolean updateTask(String id, String title, String description,
                               TaskPriority priority, TaskStatus status, LocalDate deadline) {
-        if (id == null || id.trim().isEmpty()) {
-            throw new IllegalArgumentException("Task ID cannot be null.");
-        }
-        if (title == null || title.trim().isEmpty()) {
-            throw new IllegalArgumentException("Task title cannot be empty.");
-        }
+        if (id == null || id.trim().isEmpty()) throw new IllegalArgumentException("Task ID cannot be null.");
+        if (title == null || title.trim().isEmpty()) throw new IllegalArgumentException("Task title cannot be empty.");
 
         writeLock.lock();
         try {
             Task existing = taskMap.get(id);
-            if (existing == null) {
-                return false;
-            }
+            if (existing == null) return false;
+
             existing.setTitle(title.trim());
             existing.setDescription(description != null ? description.trim() : "");
             existing.setPriority(priority != null ? priority : TaskPriority.MEDIUM);
             existing.setStatus(status != null ? status : TaskStatus.PENDING);
             existing.setDeadline(deadline);
+
+            if (dbAvailable) {
+                try {
+                    // SQL UPDATE: Update SQLite record via PreparedStatement
+                    taskDAO.updateTask(existing);
+                    LOGGER.info("SQL UPDATE: Updated task id=" + id + " in SQLite.");
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "SQL UPDATE failed for id=" + id, e);
+                }
+            }
         } finally {
             writeLock.unlock();
         }
@@ -180,49 +238,75 @@ public class TaskService {
     }
 
     /**
-     * Deletes a task by ID.
+     * DELETE: Removes a task from SQLite and in-memory cache.
+     * SQL: DELETE FROM tasks WHERE id = ?
      */
     public boolean deleteTask(String id) {
         if (id == null) return false;
-        boolean removed;
+        boolean removed = false;
+
         writeLock.lock();
         try {
-            removed = (taskMap.remove(id) != null);
+            Task task = taskMap.remove(id);
+            removed = (task != null);
+
+            if (removed && dbAvailable) {
+                try {
+                    // SQL DELETE: Remove from SQLite via PreparedStatement
+                    int numericId = parseNumericId(id);
+                    if (numericId > 0) {
+                        taskDAO.deleteTask(numericId);
+                        LOGGER.info("SQL DELETE: Deleted task id=" + id + " from SQLite.");
+                    }
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "SQL DELETE failed for id=" + id, e);
+                }
+            }
         } finally {
             writeLock.unlock();
         }
 
-        if (removed) {
-            notifyChangeListeners();
-        }
+        if (removed) notifyChangeListeners();
         return removed;
     }
 
     /**
-     * Marks a task as completed.
+     * Marks a task as completed in both SQLite and in-memory cache.
      */
     public boolean markTaskCompleted(String id) {
         if (id == null) return false;
         boolean updated = false;
+
         writeLock.lock();
         try {
             Task existing = taskMap.get(id);
             if (existing != null) {
                 existing.markCompleted();
                 updated = true;
+
+                if (dbAvailable) {
+                    try {
+                        int numericId = parseNumericId(id);
+                        if (numericId > 0) {
+                            taskDAO.markTaskCompleted(numericId);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.log(Level.WARNING, "SQL UPDATE (markCompleted) failed for id=" + id, e);
+                    }
+                }
             }
         } finally {
             writeLock.unlock();
         }
 
-        if (updated) {
-            notifyChangeListeners();
-        }
+        if (updated) notifyChangeListeners();
         return updated;
     }
 
+    // ================= READ Operations =================
+
     /**
-     * Retrieves a single task by ID.
+     * READ: Returns a defensive copy of a single task from the in-memory cache.
      */
     public Optional<Task> getTaskById(String id) {
         readLock.lock();
@@ -235,7 +319,7 @@ public class TaskService {
     }
 
     /**
-     * Returns a defensive shallow copy of all tasks for display.
+     * READ: Returns a defensive shallow copy of all tasks for display.
      */
     public List<Task> getAllTasks() {
         readLock.lock();
@@ -247,16 +331,15 @@ public class TaskService {
     }
 
     /**
-     * Returns an independent deep copy of all tasks.
-     * This snapshot is essential for background workers (auto-save, statistics)
-     * so they can operate freely without thread interference or ConcurrentModificationException.
+     * Returns an independent deep copy (snapshot) for background workers.
+     * Background threads (AutoSave, Statistics) use this to avoid ConcurrentModificationException.
      */
     public List<Task> getTasksSnapshot() {
         readLock.lock();
         try {
             List<Task> snapshot = new ArrayList<>(taskMap.size());
             for (Task t : taskMap.values()) {
-                snapshot.add(new Task(t)); // Deep copy using copy constructor
+                snapshot.add(new Task(t)); // Deep copy via copy constructor
             }
             return snapshot;
         } finally {
@@ -272,24 +355,15 @@ public class TaskService {
         try {
             return taskMap.values().stream()
                     .filter(task -> {
-                        // Keyword match on Title or Description
                         if (searchKeyword != null && !searchKeyword.trim().isEmpty()) {
                             String lower = searchKeyword.toLowerCase();
                             boolean titleMatch = task.getTitle() != null && task.getTitle().toLowerCase().contains(lower);
                             boolean descMatch = task.getDescription() != null && task.getDescription().toLowerCase().contains(lower);
                             boolean idMatch = task.getId() != null && task.getId().toLowerCase().contains(lower);
-                            if (!titleMatch && !descMatch && !idMatch) {
-                                return false;
-                            }
+                            if (!titleMatch && !descMatch && !idMatch) return false;
                         }
-                        // Status filter
-                        if (statusFilter != null && task.getStatus() != statusFilter) {
-                            return false;
-                        }
-                        // Priority filter
-                        if (priorityFilter != null && task.getPriority() != priorityFilter) {
-                            return false;
-                        }
+                        if (statusFilter != null && task.getStatus() != statusFilter) return false;
+                        if (priorityFilter != null && task.getPriority() != priorityFilter) return false;
                         return true;
                     })
                     .collect(Collectors.toList());
@@ -319,6 +393,21 @@ public class TaskService {
             return taskMap.size();
         } finally {
             readLock.unlock();
+        }
+    }
+
+    public boolean isDbAvailable() {
+        return dbAvailable;
+    }
+
+    // ================= Private Helpers =================
+
+    private int parseNumericId(String id) {
+        if (id == null) return 0;
+        try {
+            return Integer.parseInt(id.trim());
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 }

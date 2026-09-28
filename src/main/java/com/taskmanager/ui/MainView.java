@@ -1,32 +1,41 @@
 package com.taskmanager.ui;
 
 import com.taskmanager.concurrency.AutoSaveTask;
+import com.taskmanager.concurrency.BackgroundTaskManager;
 import com.taskmanager.concurrency.DeadlineMonitor;
-import com.taskmanager.model.Task;
+import com.taskmanager.service.NetworkService;
 import com.taskmanager.service.StatisticsService;
 import com.taskmanager.service.TaskService;
 import javafx.application.Platform;
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
  * MainView
- * Assembles the master desktop layout containing Header, TabPane, Views, and Status Bar.
+ * Assembles the master desktop layout: Header, TabPane (5 tabs), and Status Bar.
  *
- * Demonstrates:
- * - Complex JavaFX desktop application composition (BorderPane, TabPane)
- * - Background daemon thread lifecycle management (ScheduledExecutorService)
- * - Real-time cross-tab synchronization and status bar notifications
+ * Concurrency Architecture:
+ * ─────────────────────────────────────────────────────────────────────
+ *  BackgroundTaskManager.generalThreadPool  (fixed 4 threads)
+ *    └── NetworkService.fetchOnlineDataAsync() — HTTP requests
+ *    └── StatisticsWorker — async statistics calculation
+ *
+ *  BackgroundTaskManager.scheduledThreadPool  (2 scheduled threads)
+ *    └── AutoSaveTask     — every 30 s, saves tasks to disk
+ *    └── DeadlineMonitor  — every 10 s, scans for overdue tasks
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ * JavaFX Thread Safety:
+ *  All background thread callbacks use Platform.runLater() to
+ *  dispatch UI updates to the JavaFX Application Thread safely.
  */
 public class MainView extends BorderPane {
 
@@ -34,41 +43,38 @@ public class MainView extends BorderPane {
 
     private final TaskService taskService;
     private final StatisticsService statisticsService;
+    private final NetworkService networkService;
+    private final BackgroundTaskManager backgroundTaskManager;   // SHARED thread pool
     private final Stage primaryStage;
 
     private final TabPane tabPane = new TabPane();
     private DashboardView dashboardView;
     private TaskView taskView;
     private StatisticsView statisticsView;
+    private OnlineDataView onlineDataView;
     private AboutView aboutView;
 
-    // Status Bar Labels
-    private final Label autoSaveStatusLbl = new Label("Auto-Save: Ready");
-    private final Label deadlineStatusLbl = new Label("Deadlines: Monitoring active");
-    private final Label threadCountLbl = new Label("Background Threads: 2 active");
+    // Status Bar Labels (updated by background thread callbacks via Platform.runLater)
+    private final Label autoSaveStatusLbl  = new Label("Auto-Save: Ready");
+    private final Label deadlineStatusLbl  = new Label("Deadlines: Monitoring active");
+    private final Label dbStatusLbl        = new Label();
 
-    // Scheduled background service executor
-    private final ScheduledExecutorService scheduledExecutor = Executors.newScheduledThreadPool(2, r -> {
-        Thread t = new Thread(r);
-        t.setDaemon(true); // Daemon threads allow clean JVM shutdown when GUI closes
-        t.setName("TaskManager-ScheduledWorker-" + t.getId());
-        return t;
-    });
-
-    public MainView(TaskService taskService, StatisticsService statisticsService, Stage primaryStage) {
+    public MainView(TaskService taskService, StatisticsService statisticsService,
+                    NetworkService networkService, BackgroundTaskManager backgroundTaskManager,
+                    Stage primaryStage) {
         this.taskService = taskService;
         this.statisticsService = statisticsService;
+        this.networkService = networkService;
+        this.backgroundTaskManager = backgroundTaskManager;
         this.primaryStage = primaryStage;
 
         buildUI();
-        initBackgroundThreads();
+        initBackgroundTasks();
         bindChangeListeners();
     }
 
     private void buildUI() {
-        // 1. Top Header Banner
-        VBox topContainer = new VBox();
-
+        // ── 1. Top Header ──
         HBox header = new HBox(16);
         header.getStyleClass().add("app-header");
         header.setAlignment(Pos.CENTER_LEFT);
@@ -76,7 +82,9 @@ public class MainView extends BorderPane {
         VBox titleBox = new VBox(2);
         Label title = new Label("Multithreaded Task Management System");
         title.getStyleClass().add("app-title");
-        Label subtitle = new Label("JavaFX Desktop Architecture • Concurrency • Thread-Safe Data Layer");
+        Label subtitle = new Label(
+            "JavaFX 17 • SQLite JDBC • Thread Pools • HTTP Networking • JSON Parsing"
+        );
         subtitle.getStyleClass().add("app-subtitle");
         titleBox.getChildren().addAll(title, subtitle);
 
@@ -89,86 +97,117 @@ public class MainView extends BorderPane {
 
         header.getChildren().addAll(titleBox, spacer, manualSaveBtn);
 
-        // 2. Navigation Tabs
+        // ── 2. Five Navigation Tabs ──
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
-        dashboardView = new DashboardView(taskService, statisticsService, primaryStage, () -> tabPane.getSelectionModel().select(1));
+        // Tab 1: Dashboard
+        dashboardView = new DashboardView(taskService, statisticsService, primaryStage,
+                () -> tabPane.getSelectionModel().select(1));
         Tab dashTab = new Tab("📊 Dashboard", dashboardView);
 
+        // Tab 2: Tasks (CRUD — wired to SQLite)
         taskView = new TaskView(taskService, primaryStage);
-        Tab tasksTab = new Tab("📋 Tasks", taskView);
+        Tab tasksTab = new Tab("📋 Tasks (CRUD)", taskView);
 
+        // Tab 3: Statistics & Concurrency Lab
         statisticsView = new StatisticsView(taskService, statisticsService);
         Tab statsTab = new Tab("📈 Statistics & Lab", statisticsView);
 
+        // Tab 4: Online Data (Networking + JSON Parsing)
+        onlineDataView = new OnlineDataView(networkService, backgroundTaskManager);
+        Tab onlineTab = new Tab("🌐 Online Data", onlineDataView);
+
+        // Tab 5: About & Viva Notes
         aboutView = new AboutView();
-        Tab aboutTab = new Tab("ℹ️ About & Viva Notes", aboutView);
+        Tab aboutTab = new Tab("ℹ️ About & Viva", aboutView);
 
-        tabPane.getTabs().addAll(dashTab, tasksTab, statsTab, aboutTab);
+        tabPane.getTabs().addAll(dashTab, tasksTab, statsTab, onlineTab, aboutTab);
 
-        // When switching tabs, refresh target view
+        // Refresh view on tab switch
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (newTab == dashTab) dashboardView.refresh();
-            else if (newTab == tasksTab) taskView.refresh();
+            if (newTab == dashTab)    dashboardView.refresh();
+            else if (newTab == tasksTab)  taskView.refresh();
             else if (newTab == statsTab) statisticsView.refresh();
         });
 
+        VBox topContainer = new VBox();
         topContainer.getChildren().addAll(header, tabPane);
         setTop(topContainer);
 
-        // 3. Bottom Status / Footer Bar
-        HBox statusBar = new HBox(20);
+        // ── 3. Bottom Status Bar ──
+        HBox statusBar = new HBox(16);
         statusBar.getStyleClass().add("status-bar");
         statusBar.setAlignment(Pos.CENTER_LEFT);
 
         autoSaveStatusLbl.getStyleClass().add("status-label");
         deadlineStatusLbl.getStyleClass().add("status-label");
-        threadCountLbl.getStyleClass().add("status-label");
+
+        String dbMode = taskService.isDbAvailable() ? "✅ SQLite DB" : "📄 JSON File";
+        dbStatusLbl.setText("Persistence: " + dbMode);
+        dbStatusLbl.setStyle(taskService.isDbAvailable()
+                ? "-fx-text-fill: #059669; -fx-font-size: 11px; -fx-font-weight: bold;"
+                : "-fx-text-fill: #d97706; -fx-font-size: 11px; -fx-font-weight: bold;");
 
         Region botSpacer = new Region();
         HBox.setHgrow(botSpacer, Priority.ALWAYS);
 
-        Label jvmInfoLbl = new Label("Java " + System.getProperty("java.version") + " • HotSpot JVM");
-        jvmInfoLbl.getStyleClass().add("status-label");
+        Label jvmLbl = new Label("Java " + System.getProperty("java.version") + " • HotSpot JVM");
+        jvmLbl.getStyleClass().add("status-label");
 
-        statusBar.getChildren().addAll(autoSaveStatusLbl, new Separator(javafx.geometry.Orientation.VERTICAL),
-                deadlineStatusLbl, new Separator(javafx.geometry.Orientation.VERTICAL),
-                threadCountLbl, botSpacer, jvmInfoLbl);
-
+        statusBar.getChildren().addAll(
+            autoSaveStatusLbl,
+            new Separator(Orientation.VERTICAL),
+            deadlineStatusLbl,
+            new Separator(Orientation.VERTICAL),
+            dbStatusLbl,
+            botSpacer,
+            jvmLbl
+        );
         setBottom(statusBar);
     }
 
     /**
-     * Initializes background threads:
-     * 1. AutoSaveTask: Runs every 30 seconds to persist data without UI hitching.
-     * 2. DeadlineMonitor: Runs every 10 seconds to scan for overdue items.
+     * Initializes periodic background tasks using the SHARED ScheduledExecutorService.
+     *
+     * SCHEDULED THREAD POOL: BackgroundTaskManager.scheduledThreadPool handles:
+     *   1. AutoSaveTask  — runs every 30 s to persist task data
+     *   2. DeadlineMonitor — runs every 10 s to detect overdue tasks
+     *
+     * WHY SCHEDULED POOL INSTEAD OF PLAIN THREADS?
+     *   A plain Thread.sleep() loop wastes a thread sitting idle between ticks.
+     *   ScheduledExecutorService recycles its worker threads between scheduled runs,
+     *   is more precise, and provides clean shutdown via awaitTermination().
      */
-    private void initBackgroundThreads() {
-        // Auto-Save Task (period = 30 seconds)
-        AutoSaveTask autoSaveRunnable = new AutoSaveTask(taskService, (success, message) -> {
-            // Callback invoked on JavaFX Application Thread via Platform.runLater inside AutoSaveTask
-            autoSaveStatusLbl.setText("Auto-Save: " + (success ? "✓ " : "✗ ") + message);
-        });
-        scheduledExecutor.scheduleWithFixedDelay(autoSaveRunnable, 15, 30, TimeUnit.SECONDS);
+    private void initBackgroundTasks() {
+        // ── SCHEDULED THREAD POOL: Auto-Save every 30 seconds ──
+        // AutoSaveTask is a Runnable executed on a scheduled pool thread.
+        AutoSaveTask autoSaveTask = new AutoSaveTask(taskService, (success, msg) ->
+            // Platform.runLater: callback dispatched safely to JavaFX Application Thread
+            autoSaveStatusLbl.setText("Auto-Save: " + (success ? "✓ " : "✗ ") + msg)
+        );
+        backgroundTaskManager.scheduleWithFixedDelay(autoSaveTask, 15, 30, TimeUnit.SECONDS);
 
-        // Deadline Monitor Task (period = 10 seconds)
-        DeadlineMonitor deadlineRunnable = new DeadlineMonitor(taskService, (overdueCount, overdueList) -> {
-            // Callback invoked on JavaFX Application Thread via Platform.runLater inside DeadlineMonitor
-            if (overdueCount > 0) {
-                deadlineStatusLbl.setText("⚠️ Deadlines: " + overdueCount + " overdue task(s) require action!");
+        // ── SCHEDULED THREAD POOL: Deadline Monitor every 10 seconds ──
+        DeadlineMonitor deadlineMonitor = new DeadlineMonitor(taskService, (count, list) -> {
+            // Platform.runLater: callback dispatched safely to JavaFX Application Thread
+            if (count > 0) {
+                deadlineStatusLbl.setText("⚠️ Deadlines: " + count + " overdue!");
                 deadlineStatusLbl.setStyle("-fx-text-fill: #dc2626; -fx-font-weight: bold;");
             } else {
-                deadlineStatusLbl.setText("✓ Deadlines: All tasks on schedule");
+                deadlineStatusLbl.setText("✓ Deadlines: All on schedule");
                 deadlineStatusLbl.setStyle("-fx-text-fill: #10b981; -fx-font-weight: bold;");
             }
         });
-        scheduledExecutor.scheduleWithFixedDelay(deadlineRunnable, 2, 10, TimeUnit.SECONDS);
+        backgroundTaskManager.scheduleWithFixedDelay(deadlineMonitor, 2, 10, TimeUnit.SECONDS);
 
-        LOGGER.info("Background ScheduledExecutorService initialized with AutoSave and DeadlineMonitor.");
+        LOGGER.info("Background scheduled tasks initialized (AutoSave 30s, DeadlineMonitor 10s).");
     }
 
+    /**
+     * Registers a change listener on TaskService so all views refresh on any CRUD change.
+     * The listener uses Platform.runLater() to ensure UI updates happen on the FX thread.
+     */
     private void bindChangeListeners() {
-        // When tasks change, notify active views safely on the FX Application Thread
         taskService.addChangeListener(() -> Platform.runLater(() -> {
             dashboardView.refresh();
             taskView.refresh();
@@ -179,34 +218,24 @@ public class MainView extends BorderPane {
     private void handleManualSave() {
         try {
             taskService.save();
-            autoSaveStatusLbl.setText("Manual Save: ✓ Successfully saved to disk");
+            autoSaveStatusLbl.setText("Manual Save: ✓ Saved at "
+                    + java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
         } catch (IOException e) {
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.initOwner(primaryStage);
             alert.setTitle("Save Error");
-            alert.setHeaderText("Unable to save tasks to disk");
+            alert.setHeaderText("Unable to save tasks");
             alert.setContentText(e.getMessage());
             alert.showAndWait();
         }
     }
 
     /**
-     * Gracefully shuts down all background executor services.
+     * Gracefully shuts down StatisticsView's cached thread pool.
+     * The BackgroundTaskManager is shut down in MainApp.stop().
      */
     public void shutdown() {
-        LOGGER.info("Shutting down background ScheduledExecutorService...");
-        scheduledExecutor.shutdown();
-        try {
-            if (!scheduledExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
-                scheduledExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            scheduledExecutor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-
-        if (statisticsView != null) {
-            statisticsView.shutdown();
-        }
+        LOGGER.info("MainView shutdown: terminating StatisticsView background pool.");
+        if (statisticsView != null) statisticsView.shutdown();
     }
 }
